@@ -40,6 +40,7 @@ strict = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = []
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/safefetch"]
