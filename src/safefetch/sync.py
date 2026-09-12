@@ -11,7 +11,7 @@ even though the code under test is the real request loop.
 
 import time
 from collections.abc import Callable
-from typing import Any, Self
+from typing import Any
 
 import httpx
 
@@ -154,7 +154,8 @@ class SafeFetch:
         if self._owns_client:
             self._client.close()
 
-    def __enter__(self) -> Self:
+    # Self requires Python 3.11, and the support floor here is 3.10
+    def __enter__(self) -> "SafeFetch": # noqa: PYI034
         return self
 
     def __exit__(self, *exc: object) -> None:
