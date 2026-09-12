@@ -27,6 +27,23 @@ Safe for the target, and safe for your process.
 pip install safefetch
 ```
 
+## Usage
+
+```python
+from safefetch import Retry, TokenBucket
+from safefetch.sync import SafeFetch
+
+with SafeFetch(
+    limiter=TokenBucket(rate=5, capacity=10),
+    retry=Retry(attempts=4, max_elapsed=30),
+) as client:
+    response = client.get("https://example.com/api/items")
+```
+
+`SafeFetch` lives in `safefetch.sync` rather than the package root because
+it imports httpx, which is an optional dependency. Install it with
+`pip install safefetch[httpx]`.
+
 ## License
 
 MIT
