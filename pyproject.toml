@@ -1,6 +1,6 @@
 [project]
 name = "safefetch"
-version = "0.0.1"
+version = "0.1.0"
 description = "HTTP calls that stay inside rate limits, retry sensibly, and back off when a service is failing"
 readme = "README.md"
 requires-python = ">=3.10"
