@@ -7,6 +7,10 @@ public API may change between minor releases.
 ## [Unreleased]
 
 ### Added
+- Pure `CircuitBreaker` policy with a rolling failure window, minimum call
+  count, open cooldown and bounded half-open probes; request permits isolate
+  recovery rounds from delayed results
+- Table-driven tests for all circuit breaker transitions and boundary cases
 - `AsyncSafeFetch` in `safefetch.aio`, using `httpx.AsyncClient` and
   `asyncio.sleep` with the same limiter, retry policy and store as `SafeFetch`
 - Async adapter tests using pytest-asyncio, `MockTransport` and `FakeClock`
