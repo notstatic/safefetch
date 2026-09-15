@@ -4,6 +4,13 @@ All notable changes to this project are documented here. This project
 follows semantic versioning. While the version stays below 1.0.0 the
 public API may change between minor releases.
 
+## [Unreleased]
+
+### Added
+- `AsyncSafeFetch` in `safefetch.aio`, using `httpx.AsyncClient` and
+  `asyncio.sleep` with the same limiter, retry policy and store as `SafeFetch`
+- Async adapter tests using pytest-asyncio, `MockTransport` and `FakeClock`
+
 ## [0.1.0]
 
 First usable release.

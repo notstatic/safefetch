@@ -40,7 +40,8 @@ src/safefetch/
   clock.py           Clock protocol, SystemClock, FakeClock
   decision.py        Allow, Wait, Decision
   retry.py           Retry policy, Give / RetryAfter, parse_retry_after
-  sync.py            SafeFetch, the only module that does I/O and sleeps
+  sync.py            SafeFetch, synchronous I/O and sleep
+  aio.py             AsyncSafeFetch, asynchronous I/O and sleep
   limiters/
     base.py          Limiter protocol
     bucket.py        TokenBucket
@@ -49,9 +50,10 @@ src/safefetch/
 tests/               mirrors the module names, no __init__.py
 ```
 
-`SafeFetch` is deliberately **not** exported from the package root. It imports
-httpx, which is an optional dependency, so `import safefetch` must not require
-it. Users write `from safefetch.sync import SafeFetch`.
+`SafeFetch` and `AsyncSafeFetch` are deliberately **not** exported from the
+package root. They import httpx, which is an optional dependency, so
+`import safefetch` must not require it. Users write
+`from safefetch.sync import SafeFetch` or `from safefetch.aio import AsyncSafeFetch`.
 
 ---
 
@@ -61,9 +63,9 @@ Released: **0.1.0**.
 
 Working: Clock, TokenBucket, MemoryStore with optional LRU eviction, Retry with
 exponential backoff, full jitter, wall-clock budget and `Retry-After` support,
-and a synchronous httpx client that ties them together.
+and synchronous and asynchronous httpx clients that tie them together.
 
-Not built yet: async adapter, circuit breaker, Redis store, sliding window,
+Not built yet: circuit breaker, Redis store, sliding window,
 GCRA, conditional caching, robots.txt.
 
 ---
