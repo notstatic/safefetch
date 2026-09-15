@@ -12,7 +12,6 @@ Safe for the target, and safe for your process.
 - Circuit breaker per host
 - Conditional caching with `ETag` and `Last-Modified`
 - `robots.txt` support including `Crawl-delay`
-- One core, two adapters: sync and async
 - In-memory or Redis state, so limits hold across processes
 
 ## What it does not do
@@ -40,9 +39,35 @@ with SafeFetch(
     response = client.get("https://example.com/api/items")
 ```
 
-`SafeFetch` lives in `safefetch.sync` rather than the package root because
-it imports httpx, which is an optional dependency. Install it with
-`pip install safefetch[httpx]`.
+For asyncio, use the same policies with `AsyncSafeFetch`:
+
+```python
+import asyncio
+
+from safefetch import Retry, TokenBucket
+from safefetch.aio import AsyncSafeFetch
+
+
+async def main():
+    async with AsyncSafeFetch(
+        limiter=TokenBucket(rate=5, capacity=10),
+        retry=Retry(attempts=4, max_elapsed=30),
+    ) as client:
+        response = await client.get("https://example.com/api/items")
+        print(response.status_code)
+
+
+asyncio.run(main())
+```
+
+Both adapters share the limiter, retry policy and store. `AsyncSafeFetch`
+awaits HTTP calls and sleeps, so waiting leaves the event loop free to run
+other tasks. Use `async with` or `await client.aclose()` to close it; an
+injected `httpx.AsyncClient` remains the caller's responsibility.
+
+`SafeFetch` and `AsyncSafeFetch` live in `safefetch.sync` and `safefetch.aio`
+rather than the package root because they import httpx, which is an optional
+dependency. Install it with `pip install safefetch[httpx]`.
 
 ## License
 
