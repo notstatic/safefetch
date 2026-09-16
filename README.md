@@ -12,7 +12,6 @@ Safe for the target, and safe for your process.
 - Circuit breaker integration per host
 - Conditional caching with `ETag` and `Last-Modified`
 - `robots.txt` support including `Crawl-delay`
-- Atomic Redis state updates, so limits hold across processes
 
 ## What it does not do
 
@@ -108,24 +107,19 @@ each completed request. Old permits cannot affect a later recovery round.
 Record cancelled probes as failures to release the circuit from that round.
 The policy itself performs no I/O, locking or sleeping.
 
-## Redis store scaffold
+## Redis store
 
 Install `safefetch[redis]` and import `RedisStore` from `safefetch.stores.redis`.
-It implements the synchronous `Store.check` interface, with explicit codecs
-for the limiter's state:
+It implements the synchronous `Store.check` interface for `TokenBucket` using
+an atomic Lua script:
 
 ```python
-import json
-from dataclasses import asdict
-
-from safefetch import BucketState, SystemClock, TokenBucket
+from safefetch import SystemClock, TokenBucket
 from safefetch.stores.redis import RedisStore
 
-with RedisStore[BucketState](
+with RedisStore(
     "redis://localhost:6379/0",
     algorithm="token_bucket",
-    encode=lambda state: json.dumps(asdict(state)),
-    decode=lambda payload: BucketState(**json.loads(payload)),
     ttl=60,
 ) as store:
     decision = store.check(
@@ -133,23 +127,47 @@ with RedisStore[BucketState](
     )
 ```
 
-This uses the key `safefetch:token_bucket:example.com`. Every check writes the
-new state with `SET ... EX ttl`, including checks that return `Wait`, so idle
-keys expire automatically. Expired keys restart from the limiter's initial
-state; choose a TTL at least as long as its memory horizon (for a token bucket,
-`capacity / rate`). Stores sharing an algorithm and key must agree on the
-codec, limiter configuration and time base. Monotonic clocks on different
-machines do not provide a common time base.
+This uses the key `safefetch:token_bucket:example.com`. Each script invocation
+reads state, refills tokens, makes the decision and writes state with
+`SET ... EX ttl` atomically. Denied checks also refresh the TTL. Expired keys
+restart full; choose a TTL at least as long as `capacity / rate`. Stores
+sharing a namespace must agree on the limiter configuration, TTL, `max_keys`
+and time base. Monotonic clocks on different machines do not provide a common
+time base.
+
+The caller's `now` is passed to Lua as an argument. The script never reads
+Redis `TIME`, so `FakeClock` works unchanged. Lua returns waits rounded up to
+integer milliseconds; Python converts them back to seconds. Token counts
+and timestamps retain double precision in the stored JSON.
+
+`reset(key)`, `clear()` and `len(store)` operate within the store's namespace.
+An optional `max_keys` applies LRU eviction atomically, with an expiring
+`safefetch_lru:{algorithm}` index. This implementation targets standalone Redis,
+not Redis Cluster. Stop concurrent writers before calling `clear()`.
 
 The store opens connections lazily. `close()` and `with` close only the client
 and pool it creates; an injected `client=redis.Redis(...)` remains the caller's
 responsibility. Connection options such as `socket_timeout` pass through to
 redis-py. This store performs blocking I/O.
 
-GET and SET are intentionally separate in this scaffold. Overlapping callers
-can both consume the same token and overwrite an update. Atomic updates are
-deferred; a strict expected-failure test records the current race. Redis and
-serialization errors propagate to the caller.
+The scaffold's arbitrary `encode`/`decode` callbacks have been replaced by the
+script's fixed `BucketState` JSON schema. Other limiter types are rejected;
+they need an equivalent Lua implementation before Redis can run them atomically.
+Redis errors propagate to the caller.
+
+## Testing
+
+Install the development dependencies with `uv sync --all-extras --dev` and
+install `redis-server` (`brew install redis` on macOS or `apt-get install
+redis-server` on Debian/Ubuntu). Run `uv run pytest`.
+
+The suite starts and stops its own real Redis process on a temporary Unix
+socket, without persistence. It never uses an existing Redis database. All
+memory-store tests also run against Redis, including LRU eviction and
+concurrent access. A separate test uses two independent Redis connections
+and verifies that together they admit exactly the bucket's capacity. Policy
+time remains controlled by `FakeClock`; Redis tests are not skipped if the
+server executable is missing.
 
 ## License
 

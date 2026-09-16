@@ -7,10 +7,10 @@ public API may change between minor releases.
 ## [Unreleased]
 
 ### Added
-- Optional `RedisStore` scaffold with connection ownership, algorithm-scoped
-  keys, injectable state codecs and a refreshed TTL on every write. GET and
-  SET are intentionally separate; concurrent checks are not atomic yet.
-- Redis store unit tests, including an expected failure for overlapping reads
+- Atomic Redis token-bucket Lua script with caller-supplied time, waits returned
+  as integer milliseconds, refreshed TTL and optional shared LRU eviction
+- Complete memory-store test suite exercised against real Redis, plus a
+  capacity test using two independent connections and deterministic clock tests
 - Pure `CircuitBreaker` policy with a rolling failure window, minimum call
   count, open cooldown and bounded half-open probes; request permits isolate
   recovery rounds from delayed results
@@ -18,6 +18,11 @@ public API may change between minor releases.
 - `AsyncSafeFetch` in `safefetch.aio`, using `httpx.AsyncClient` and
   `asyncio.sleep` with the same limiter, retry policy and store as `SafeFetch`
 - Async adapter tests using pytest-asyncio, `MockTransport` and `FakeClock`
+
+### Changed
+- `RedisStore` now supports `TokenBucket` with a fixed JSON state schema;
+  generic codec callbacks and the non-atomic GET/SET fallback are removed
+- CI and release verification install Redis and run the integration tests
 
 ## [0.1.0]
 
