@@ -1,4 +1,5 @@
 import threading
+from collections.abc import Callable
 
 import pytest
 
@@ -6,11 +7,14 @@ from safefetch.clock import FakeClock
 from safefetch.decision import Allow, Wait
 from safefetch.limiters.bucket import TokenBucket
 from safefetch.stores.memory import MemoryStore
+from safefetch.stores.redis import RedisStore
+
+StoreFactory = Callable[..., MemoryStore | RedisStore]
 
 
-def test_keys_are_independent() -> None:
+def test_keys_are_independent(store_factory: StoreFactory) -> None:
     clock = FakeClock()
-    store: MemoryStore = MemoryStore()
+    store = store_factory()
     bucket = TokenBucket(rate=1, capacity=2)
 
     for _ in range(2):
@@ -20,9 +24,9 @@ def test_keys_are_independent() -> None:
     assert isinstance(store.check("b", bucket, clock.monotonic()), Allow)
 
 
-def test_same_key_shares_state() -> None:
+def test_same_key_shares_state(store_factory: StoreFactory) -> None:
     clock = FakeClock()
-    store: MemoryStore = MemoryStore()
+    store = store_factory()
     bucket = TokenBucket(rate=1, capacity=3)
 
     allowed = sum(
@@ -31,18 +35,18 @@ def test_same_key_shares_state() -> None:
     assert allowed == 3
 
 
-def test_unseen_key_starts_full() -> None:
+def test_unseen_key_starts_full(store_factory: StoreFactory) -> None:
     clock = FakeClock()
-    store: MemoryStore = MemoryStore()
+    store = store_factory()
     bucket = TokenBucket(rate=1, capacity=5)
 
     assert isinstance(store.check("fresh", bucket, clock.monotonic()), Allow)
     assert len(store) == 1
 
 
-def test_limit_holds_under_concurrency() -> None:
+def test_limit_holds_under_concurrency(store_factory: StoreFactory) -> None:
     clock = FakeClock()
-    store: MemoryStore = MemoryStore()
+    store = store_factory()
     bucket = TokenBucket(rate=1, capacity=10)
 
     allowed = 0
@@ -64,9 +68,9 @@ def test_limit_holds_under_concurrency() -> None:
     assert allowed == 10
 
 
-def test_least_recently_used_key_is_evicted() -> None:
+def test_least_recently_used_key_is_evicted(store_factory: StoreFactory) -> None:
     clock = FakeClock()
-    store: MemoryStore = MemoryStore(max_keys=2)
+    store = store_factory(max_keys=2)
     bucket = TokenBucket(rate=1, capacity=1)
 
     store.check("first", bucket, clock.monotonic())
@@ -78,9 +82,9 @@ def test_least_recently_used_key_is_evicted() -> None:
     assert isinstance(store.check("first", bucket, clock.monotonic()), Allow)
 
 
-def test_reset_forgets_one_key() -> None:
+def test_reset_forgets_one_key(store_factory: StoreFactory) -> None:
     clock = FakeClock()
-    store: MemoryStore = MemoryStore()
+    store = store_factory()
     bucket = TokenBucket(rate=1, capacity=1)
 
     store.check("a", bucket, clock.monotonic())
@@ -90,9 +94,9 @@ def test_reset_forgets_one_key() -> None:
     assert isinstance(store.check("a", bucket, clock.monotonic()), Allow)
 
 
-def test_clear_forgets_everything() -> None:
+def test_clear_forgets_everything(store_factory: StoreFactory) -> None:
     clock = FakeClock()
-    store: MemoryStore = MemoryStore()
+    store = store_factory()
     bucket = TokenBucket(rate=1, capacity=1)
 
     store.check("a", bucket, clock.monotonic())
@@ -103,6 +107,6 @@ def test_clear_forgets_everything() -> None:
     assert len(store) == 0
 
 
-def test_max_keys_must_be_positive() -> None:
-    with pytest.raises(ValueError, match="at least 1"):
-        MemoryStore(max_keys=0)
+def test_max_keys_must_be_positive(store_factory: StoreFactory) -> None:
+    with pytest.raises(ValueError, match="at least 1|positive integer"):
+        store_factory(max_keys=0)

@@ -25,7 +25,8 @@ defending:
 - Sync and async adapters share one core. Only the sleep differs.
 - Tests never sleep. They inject a `FakeClock` and move time by hand.
 - Locking belongs to the store, not the algorithm. In-memory uses a
-  `threading.Lock`, Redis will use a Lua script for the same reason.
+  `threading.Lock`, Redis uses a Lua script for the same reason. Lua receives
+  caller-supplied time and returns waits rounded up to integer milliseconds.
 
 If a change would put I/O, a lock, or a sleep into a limiter or the retry
 policy, that change is wrong. Push it down into a store or up into an adapter.
@@ -48,7 +49,8 @@ src/safefetch/
     bucket.py        TokenBucket
   stores/
     memory.py        Store protocol, MemoryStore
-    redis.py         RedisStore scaffold, separate GET and SET, TTL
+    redis.py         Atomic RedisStore for TokenBucket, TTL and optional LRU
+    token_bucket.lua Atomic check/update using caller-supplied time
 tests/               mirrors the module names, no __init__.py
 ```
 
@@ -69,10 +71,10 @@ and synchronous and asynchronous httpx clients that tie them together.
 The pure CircuitBreaker policy is also available; adapter and store integration
 is not built yet.
 RedisStore implements the synchronous Store interface with connection ownership,
-algorithm-scoped keys and TTL. Its separate GET and SET operations deliberately
-do not satisfy the protocol's atomicity guarantee yet.
+algorithm-scoped keys, TTL and optional LRU. TokenBucket checks run atomically
+in Lua on standalone Redis. Other limiter types are not supported yet.
 
-Not built yet: circuit breaker integration, atomic Redis updates, sliding window,
+Not built yet: circuit breaker integration, sliding window,
 GCRA, conditional caching, robots.txt.
 
 ---
@@ -81,6 +83,7 @@ GCRA, conditional caching, robots.txt.
 
 ```bash
 uv sync --all-extras --dev      # after pulling, and after adding a subpackage
+# Tests require redis-server on PATH (brew install redis / apt install redis-server).
 uv run pytest
 uv run ruff check .
 uv run mypy src
@@ -122,8 +125,10 @@ code.
 - **Never call `time.sleep` in a test.** Use `FakeClock` and `advance()`. For
   `SafeFetch`, inject a `sleep` function that records the duration and advances
   the fake clock.
-- **Never hit the network.** Use `httpx.MockTransport` with a handler that
-  returns canned responses.
+- **HTTP tests never hit the network.** Use `httpx.MockTransport` with canned
+  responses. Redis integration tests run against their own temporary real
+  Redis process on a Unix socket, with persistence disabled. Never use an
+  existing database. Limiter time still comes from FakeClock, not Redis TIME.
 - Tests assert on behaviour, not internals. `isinstance(decision, Allow)`,
   not the token count, unless the token count is the point.
 - Every error path gets a test. Every `raise` in the source has a test that
@@ -193,8 +198,7 @@ that has been missed, then write the test that settles it either way.
 **0.2.0** async adapter over `httpx.AsyncClient` sharing the same core;
 circuit breaker per host as a three-state machine with a rolling failure rate,
 a minimum call count before it can trip, and half-open probes; Redis store with
-an atomic check-and-update in Lua, tested against a real Redis through
-testcontainers.
+an atomic check-and-update in Lua, tested against an isolated real Redis process.
 
 **0.3.0** sliding window and GCRA limiters with a comparison table in the
 README covering memory per key and burst behaviour; Hypothesis property test
