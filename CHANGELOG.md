@@ -7,6 +7,10 @@ public API may change between minor releases.
 ## [Unreleased]
 
 ### Added
+- Optional `RedisStore` scaffold with connection ownership, algorithm-scoped
+  keys, injectable state codecs and a refreshed TTL on every write. GET and
+  SET are intentionally separate; concurrent checks are not atomic yet.
+- Redis store unit tests, including an expected failure for overlapping reads
 - Pure `CircuitBreaker` policy with a rolling failure window, minimum call
   count, open cooldown and bounded half-open probes; request permits isolate
   recovery rounds from delayed results

@@ -12,7 +12,7 @@ Safe for the target, and safe for your process.
 - Circuit breaker integration per host
 - Conditional caching with `ETag` and `Last-Modified`
 - `robots.txt` support including `Crawl-delay`
-- In-memory or Redis state, so limits hold across processes
+- Atomic Redis state updates, so limits hold across processes
 
 ## What it does not do
 
@@ -107,6 +107,49 @@ latest state in your store, and return the original permit exactly once for
 each completed request. Old permits cannot affect a later recovery round.
 Record cancelled probes as failures to release the circuit from that round.
 The policy itself performs no I/O, locking or sleeping.
+
+## Redis store scaffold
+
+Install `safefetch[redis]` and import `RedisStore` from `safefetch.stores.redis`.
+It implements the synchronous `Store.check` interface, with explicit codecs
+for the limiter's state:
+
+```python
+import json
+from dataclasses import asdict
+
+from safefetch import BucketState, SystemClock, TokenBucket
+from safefetch.stores.redis import RedisStore
+
+with RedisStore[BucketState](
+    "redis://localhost:6379/0",
+    algorithm="token_bucket",
+    encode=lambda state: json.dumps(asdict(state)),
+    decode=lambda payload: BucketState(**json.loads(payload)),
+    ttl=60,
+) as store:
+    decision = store.check(
+        "example.com", TokenBucket(rate=5, capacity=10), SystemClock().monotonic()
+    )
+```
+
+This uses the key `safefetch:token_bucket:example.com`. Every check writes the
+new state with `SET ... EX ttl`, including checks that return `Wait`, so idle
+keys expire automatically. Expired keys restart from the limiter's initial
+state; choose a TTL at least as long as its memory horizon (for a token bucket,
+`capacity / rate`). Stores sharing an algorithm and key must agree on the
+codec, limiter configuration and time base. Monotonic clocks on different
+machines do not provide a common time base.
+
+The store opens connections lazily. `close()` and `with` close only the client
+and pool it creates; an injected `client=redis.Redis(...)` remains the caller's
+responsibility. Connection options such as `socket_timeout` pass through to
+redis-py. This store performs blocking I/O.
+
+GET and SET are intentionally separate in this scaffold. Overlapping callers
+can both consume the same token and overwrite an update. Atomic updates are
+deferred; a strict expected-failure test records the current race. Redis and
+serialization errors propagate to the caller.
 
 ## License
 
