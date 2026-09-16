@@ -48,6 +48,7 @@ src/safefetch/
     bucket.py        TokenBucket
   stores/
     memory.py        Store protocol, MemoryStore
+    redis.py         RedisStore scaffold, separate GET and SET, TTL
 tests/               mirrors the module names, no __init__.py
 ```
 
@@ -67,8 +68,11 @@ exponential backoff, full jitter, wall-clock budget and `Retry-After` support,
 and synchronous and asynchronous httpx clients that tie them together.
 The pure CircuitBreaker policy is also available; adapter and store integration
 is not built yet.
+RedisStore implements the synchronous Store interface with connection ownership,
+algorithm-scoped keys and TTL. Its separate GET and SET operations deliberately
+do not satisfy the protocol's atomicity guarantee yet.
 
-Not built yet: circuit breaker integration, Redis store, sliding window,
+Not built yet: circuit breaker integration, atomic Redis updates, sliding window,
 GCRA, conditional caching, robots.txt.
 
 ---
