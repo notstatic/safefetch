@@ -40,6 +40,7 @@ src/safefetch/
   clock.py           Clock protocol, SystemClock, FakeClock
   decision.py        Allow, Wait, Decision
   retry.py           Retry policy, Give / RetryAfter, parse_retry_after
+  breaker.py         CircuitBreaker policy, BreakerState, Permit / Reject
   sync.py            SafeFetch, synchronous I/O and sleep
   aio.py             AsyncSafeFetch, asynchronous I/O and sleep
   limiters/
@@ -64,8 +65,10 @@ Released: **0.1.0**.
 Working: Clock, TokenBucket, MemoryStore with optional LRU eviction, Retry with
 exponential backoff, full jitter, wall-clock budget and `Retry-After` support,
 and synchronous and asynchronous httpx clients that tie them together.
+The pure CircuitBreaker policy is also available; adapter and store integration
+is not built yet.
 
-Not built yet: circuit breaker, Redis store, sliding window,
+Not built yet: circuit breaker integration, Redis store, sliding window,
 GCRA, conditional caching, robots.txt.
 
 ---
